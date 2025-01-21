@@ -79,36 +79,47 @@ def read_sensor():
 def start_server():
     addr = socket.getaddrinfo('0.0.0.0', 80)[0][-1]
     s = socket.socket()
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(addr)
     s.listen(1)
     print('Listening on', addr)
 
     while True:
-        cl, addr = s.accept()
-        print('Client connected from', addr)
-        cl_file = cl.makefile('rwb', 0)
-        while True:
-            line = cl_file.readline()
-            if not line or line == b'\r\n':
-                break
+        check_wifi_connection(wlan)  # Check Wi-Fi connection continuously
+        try:
+            cl, addr = s.accept()
+            print('Client connected from', addr)
+            cl_file = cl.makefile('rwb', 0)
+            while True:
+                line = cl_file.readline()
+                if not line or line == b'\r\n':
+                    break
 
-        temperature, humidity = read_sensor()
-        if temperature is not None and humidity is not None:
-            response = """\
+            temperature, humidity = read_sensor()
+            led = machine.Pin('LED', machine.Pin.OUT)
+            for _ in range(20):
+                led.on()
+                time.sleep(0.1)
+                led.off()
+                time.sleep(0.1)
+            if temperature is not None and humidity is not None:
+                response = """\
 HTTP/1.1 200 OK
 
 Temperature: {:.1f} C
 Humidity: {:.1f} %
 """.format(temperature, humidity)
-        else:
-            response = """\
+            else:
+                response = """\
 HTTP/1.1 500 Internal Server Error
 
 Failed to read sensor data.
 """
-
-        cl.send(response)
-        cl.close()
+            cl.send(response)
+            cl.close()
+        except Exception as e:
+            print("Error:", e)
+            check_wifi_connection(wlan)  # Check Wi-Fi connection continuously
 
 start_server()
 
