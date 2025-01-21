@@ -4,13 +4,34 @@ import time
 import socket
 import network
 
-# Wi-Fi network configuration
-WIFI_NETWORK = 'Your WiFi Network'
-WIFI_PASSWORD = 'Your WiFi Password'
+# Flash LED four times to show the device loaded successfully
+led = machine.Pin('LED', machine.Pin.OUT)
+for _ in range(4):
+    print('Script running...')
+    led.on()
+    time.sleep(0.5)
+    led.off()
+    time.sleep(0.5)
 
+
+# Function to load Wi-Fi credentials from a file
+def load_wifi_credentials(filepath):
+    print('Loading Wi-Fi credentials...')
+    creds = {}
+    with open(filepath, 'r') as f:
+        for line in f:
+            key, value = line.strip().split('=')
+            creds[key] = value
+    return creds
+
+# Load Wi-Fi credentials
+creds = load_wifi_credentials('creds')
+WIFI_NETWORK = creds['WIFI_NETWORK']
+WIFI_PASSWORD = creds['WIFI_PASSWORD']
 
 # WiFi connection setup
 def connect_wifi():
+    print('Connecting to Wi-Fi...')
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     wlan.connect(WIFI_NETWORK, WIFI_PASSWORD)
@@ -25,11 +46,19 @@ def connect_wifi():
         time.sleep(0.5)
         led.off()
         time.sleep(0.5)
+
+    # Print the IP address
+    print('Network config:', wlan.ifconfig())
     
     return wlan
 
+def check_wifi_connection(wlan):
+    if not wlan.isconnected():
+        print('Wi-Fi connection lost. Resetting device...')
+        machine.reset()
+
 # Connect to Wi-Fi
-connect_wifi()
+wlan = connect_wifi()
 
 # Initialize DHT11 sensor
 d = dht.DHT11(machine.Pin(25))
@@ -40,17 +69,7 @@ def read_sensor():
         d.measure()
         temperature = d.temperature()
         humidity = d.humidity()
-        return temperature, humidity
-    except OSError as e:
-        print("Sensor error:", e)
-        return None, None
-    
-# Function to read temperature and humidity
-def read_sensor():
-    try:
-        d.measure()
-        temperature = d.temperature()
-        humidity = d.humidity()
+        print('Temperature: {} C, Humidity: {} %'.format(temperature, humidity))
         return temperature, humidity
     except OSError as e:
         print("Sensor error:", e)
@@ -91,17 +110,5 @@ Failed to read sensor data.
         cl.send(response)
         cl.close()
 
-# Main loop to update sensor data every minute
-def main():
-    import _thread
-    _thread.start_new_thread(start_server, ())
+start_server()
 
-    while True:
-        read_sensor()
-        time.sleep(600)  # Update every 10 minutes
-        # Check if the Wi-Fi connection is still active
-        if not wlan.isconnected():
-            print('WiFi connection lost. Reconnecting...')
-            wlan = connect_wifi()
-
-main()
